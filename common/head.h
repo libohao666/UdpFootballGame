@@ -13,3 +13,5 @@
 #include "common.h"
 #include "color.h"
 #include "datatype.h"
+#include <curses.h>
+#include <signal.h>

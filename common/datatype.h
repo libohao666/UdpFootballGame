@@ -1,8 +1,8 @@
 #ifndef _DATATYPE_H
 #define _DATATYPE_H
-#define MAXMSG 1024
+#define MAXMSG 512
 struct LogRequest {
-    char name[20];
+    char name[80];
     int team; // 0 r 1 b
 	char msg[512];
 };
@@ -20,7 +20,7 @@ struct User {
     int team;//默认蓝队
 	int fd;
 	int online;
-    char name[20];//队名
+    char name[80];//队名
     int flag; // 未响应的次数
     //struct sockaddr_in addr; //远程地址
     struct Point loc; //位置
@@ -49,12 +49,15 @@ struct TransMsg {//传输的信息
 
 #define FT_TEST 0x01
 #define FT_WALL 0x02
-#define FT_MSG 0x04 //只对一个人发
-#define FT_ACK 0x08 //回复
+#define FT_MSG 0x04
+#define FT_ACK 0x08
+#define FT_FIN 0x10
 
 struct FootBallMsg {
 	int type;
 	int size;
+	int team;
+	char name[20];
 	char msg[MAXMSG];
 };
 

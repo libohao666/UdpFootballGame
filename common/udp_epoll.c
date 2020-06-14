@@ -7,7 +7,7 @@
 extern int port;
 extern struct User *rteam;
 extern struct User *bteam;
-extern int repollfd, lepollfd;
+extern int repollfd, bepollfd;
 
 void add_event(int epollfd, int fd, int events){
     struct epoll_event ev;
@@ -26,11 +26,8 @@ void add_event_ptr(int epollfd, int fd, int events, struct User *user){
 }
 
 
-void del_event(int epollfd, int fd, int events) {
-    struct epoll_event ev;
-    ev.data.fd = fd;
-    ev.events = events;
-    epoll_ctl(epollfd, EPOLL_CTL_DEL, fd, &ev);
+void del_event(int epollfd, int fd) {
+    epoll_ctl(epollfd, EPOLL_CTL_DEL, fd, NULL);
 }
 
 int udp_connect(int epollfd, struct sockaddr_in *serveraddr) {
@@ -51,6 +48,14 @@ int udp_connect(int epollfd, struct sockaddr_in *serveraddr) {
     return sockfd;
 }
 
+int check_online(struct LogRequest *request) {
+	for (int i = 0; i < MAX; i++) {
+		if (rteam[i].online && !strcmp(rteam[i].name, request->name)) return 1;
+		if (bteam[i].online && !strcmp(bteam[i].name, request->name)) return 1;
+	}
+	return 0;
+}
+
 int udp_accept(int epollfd, int fd, struct User *user) {
     struct sockaddr_in client;
     int new_fd, ret;
@@ -64,10 +69,18 @@ int udp_accept(int epollfd, int fd, struct User *user) {
     ret = recvfrom(fd, (void *)&request, sizeof(request), 0, (struct sockaddr *)&client, &len);
     if (ret != sizeof(request)) {
         response.type = 1;
-        strcpy(response.msg, "Login failed.");
+        strcpy(response.msg, "Login failed with NetWork Errors!");
         sendto(fd, (void *)&response, sizeof(response), 0, (struct sockaddr *)&client, len);
         return -1;
     }
+
+	if (check_online(&request)) {
+		response.type = 1;
+        strcpy(response.msg, "You are already playing this game somewhere");
+        sendto(fd, (void *)&response, sizeof(response), 0, (struct sockaddr *)&client, len);
+		return -1;
+	}
+
     response.type = 0;
     strcpy(response.msg, "Login success. Enjoy yourself.");
     sendto(fd, (void *)&response, sizeof(response), 0, (struct sockaddr *)&client, len);
@@ -100,7 +113,7 @@ void add_to_sub_reactor(struct User *user) {
 	team[sub].flag = 10;
 	DBG(L_RED"sub = %d, name = %s"NONE, sub, team[sub].name);
 	if (user->team) {
-		add_event_ptr(lepollfd, team[sub].fd, EPOLLIN | EPOLLET, &team[sub]); 
+		add_event_ptr(bepollfd, team[sub].fd, EPOLLIN | EPOLLET, &team[sub]); 
 	} else
 		add_event_ptr(repollfd, team[sub].fd, EPOLLIN | EPOLLET, &team[sub]); 
 }

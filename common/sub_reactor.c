@@ -26,4 +26,5 @@ void *sub_reactor(void *arg) {
 			}
 		}
 	}
+	return NULL;
 }

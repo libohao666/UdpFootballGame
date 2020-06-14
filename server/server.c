@@ -5,13 +5,14 @@
 #include "../common/udp_epoll.h"
 #include "../common/sub_reactor.h"
 #include "../common/heart_beat.h"
-#include "../game.h"
+#include "../common/game.h"
+#include "../common/server_exit.h"
 
 char *conf = "./server.conf";
 
 struct User *rteam;
 struct User *bteam;
-int repollfd, lepollfd;
+int repollfd, bepollfd;
 
 int data_port;
 int port = 0;
@@ -19,7 +20,7 @@ int port = 0;
 //struct Map court;
 
 int main(int argc, char **argv) {
-    int opt, listener, epoll_fd;
+	int opt, listener, epoll_fd;
     pthread_t draw_t, red_t, blue_t, heart_t;
     while ((opt = getopt(argc, argv, "p:")) != -1) {
         switch (opt) {
@@ -55,14 +56,15 @@ int main(int argc, char **argv) {
     }
 
     DBG(GREEN"INFO"NONE" : Server start on Port %d\n", port);
-
-    //pthread_create(&draw_t, NULL, draw, NULL);
+#ifndef _D
+    pthread_create(&draw_t, NULL, draw, NULL);
+#endif
 
     epoll_fd = epoll_create(MAX * 2);
     repollfd = epoll_create(MAX);
-    lepollfd = epoll_create(MAX);
+    bepollfd = epoll_create(MAX);
 
-    if (epoll_fd < 0 || repollfd < 0 || lepollfd < 0) {
+    if (epoll_fd < 0 || repollfd < 0 || bepollfd < 0) {
         perror("epoll_create");
         exit(1);
     }
@@ -71,26 +73,25 @@ int main(int argc, char **argv) {
 	struct task_queue blueQueue;
 
 	task_queue_init(&redQueue, MAX, repollfd);
-	task_queue_init(&blueQueue, MAX, lepollfd);
+	task_queue_init(&blueQueue, MAX, bepollfd);
 
 	pthread_create(&red_t, NULL, sub_reactor, (void *)&redQueue);
 	pthread_create(&blue_t, NULL, sub_reactor, (void *)&blueQueue);
 	pthread_create(&heart_t, NULL, heart_beat, NULL);
-
+	
+	signal(SIGINT, server_exit);
 
     struct epoll_event ev, events[MAX * 2];
-
     ev.events = EPOLLIN;
     ev.data.fd = listener;
-
     epoll_ctl(epoll_fd, EPOLL_CTL_ADD, listener, &ev);
     struct sockaddr_in client;
     socklen_t len = sizeof(client);
+        
+	Show_Message(, , "Waiting for Login", 1);
 
     while (1) {
-        //w_gotoxy_puts(Message, 1, 1, "Waiting for login");
-        //wrefresh(Message);
-        DBG(YELLOW"Main Pthread"NONE" :  before epoll_wait\n");
+		DBG(YELLOW"Main Pthread"NONE" :  before epoll_wait\n");
         int nfds = epoll_wait(epoll_fd, events, MAX * 2, -1);
         DBG(YELLOW"Main Pthread"NONE" :  After epoll_wait\n");
 
@@ -104,10 +105,12 @@ int main(int argc, char **argv) {
 				if (new_fd > 0) {
 					DBG(YELLOW"Main thread"NONE" : Add %s to %s sub_reactor.\n", user.name, (user.team ? "BLUE": "RED"));
 					add_to_sub_reactor(&user);
+					sprintf(buff, "%s login the Game.", user.name);
+					Show_Message( , , buff, 1);
 				}
             } else {
                 recv(events[i].data.fd, buff, sizeof(buff), 0);
-                printf(PINK"RECV"NONE" : %s\n", buff);
+                DBG(PINK"RECV"NONE" : %s\n", buff);
             }
             //char info[1024] = {0};
             //w_gotoxy_puts(Message, 1, 2, info);
