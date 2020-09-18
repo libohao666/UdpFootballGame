@@ -1,19 +1,17 @@
-/*************************************************************************
-	> File Name: client.c
-	> Author: lbh
-	> Mail: 2052658718@qq.com
-	> Created Time: 2020年06月13日 星期六 20时41分12秒
- ************************************************************************/
-
 #include "../common/head.h"
 #include "../common/udp_client.h"
 #include "../common/client_recver.h"
 #include "../common/game.h"
+#include "../common/send_chat.h"
+#include "../common/send_ctl.h"
+#include "../common/show_strength.h"
 
 char server_ip[20] = {0};
 int server_port = 0;
 char *conf = "./football.conf";
-int sockfd, data_port;
+struct FootBallMsg chat_msg;
+struct FootBallMsg ctl_msg;
+int sockfd;
 
 void logout(int signum) {
 	struct FootBallMsg msg;
@@ -24,11 +22,19 @@ void logout(int signum) {
 }
 
 int main(int argc, char **argv)  {
-    int opt;
+	setlocale(LC_ALL,"");
+	int opt;
 	pthread_t recv_t, draw_t;
     struct LogRequest request;
     struct LogResponse response;
-    bzero(&request, sizeof(request));
+	bzero(&request, sizeof(request));
+
+	bzero(&chat_msg, sizeof(chat_msg));
+	bzero(&ctl_msg, sizeof(ctl_msg));
+
+	chat_msg.type = FT_MSG;
+	ctl_msg.type = FT_CTL;
+
     while ((opt = getopt(argc, argv, "h:p:n:t:m:")) != -1) {
         switch (opt) {
             case 'h':
@@ -46,7 +52,7 @@ int main(int argc, char **argv)  {
             case 'm':
                 strcpy(request.msg, optarg);
                 break;
-            default:
+			default:
                 fprintf(stderr, "Usage : %s [-h host] [-p port]!\n", argv[0]);
                 exit(1);
 
@@ -66,12 +72,10 @@ int main(int argc, char **argv)  {
     if (!strlen(request.name)) strcpy(request.name, get_value(conf, "NAME"));
     if (!strlen(request.msg)) strcpy(request.msg, get_value(conf, "LOGMSG"));
     if (!request.team) request.team = atoi(get_value(conf, "TEAM"));
-
-    //data_port = atoi(get_value(conf, "DATAPORT"));
-    court.width = atoi(get_value(conf, "COLS"));
+	court.width = atoi(get_value(conf, "COLS"));
     court.height = atoi(get_value(conf, "LINES"));
-    court.start.x = 1;
-    court.start.y = 1;
+    court.start.x = 3;
+    court.start.y = 3;
 
 	signal(SIGINT, logout);
 
@@ -109,33 +113,68 @@ int main(int argc, char **argv)  {
 			exit(1);
 		}
 	} else {
-		DBG(RED"error:"NONE"out of");
+		DBG(RED"error:"NONE"out of service");
 		exit(1);
 	}
 
-
     DBG(GREEN"SERVER : "NONE" %s \n", response.msg);
     connect(sockfd, (struct sockaddr *)&server, len);
-
-#ifndef _D
-    pthread_create(&draw_t, NULL, draw, NULL);
+#ifndef _D	
+	pthread_create(&draw_t, NULL, draw, NULL);
 #endif
-
 	pthread_create(&recv_t, NULL, client_recv, NULL);
 
+	
+	signal(14, send_ctl);
+
+	struct itimerval itimer;
+	itimer.it_interval.tv_sec = 0;
+	itimer.it_interval.tv_usec = 100000;
+	itimer.it_value.tv_sec = 0; 
+	itimer.it_value.tv_usec = 100000; 
+	
+	setitimer(ITIMER_REAL, &itimer, NULL);
+	
+
+	noecho();
+	cbreak();
+	keypad(stdscr, TRUE);
 	while (1) {
-		struct FootBallMsg msg;
-		msg.type = FT_MSG;
-		DBG(YELLOW"Input Message : "NONE);
-		w_gotoxy_puts(Write, 1, 1, "Input Message : ");
-		mvwscanw(Write, 2, 1, "%[^\n]s", msg.msg);
-		if (strlen(msg.msg)) 
-            send(sockfd, (void *)&msg, sizeof(msg), 0);
-		memset(msg.msg, 0, sizeof(msg.msg));
+		int c = getchar();
+		switch (c) {
+			case 'a':
+				ctl_msg.ctl.dirx -= 1;
+				break;
+			case 'd':
+				ctl_msg.ctl.dirx += 1;
+				break;
+			case 'w':
+				ctl_msg.ctl.diry -= 1;
+				break;
+			case 's':
+				ctl_msg.ctl.diry += 1;
+				break;
+			case 13:
+				send_chat();
+				break;
+			case ' ':
+				show_strength();
+				break;
+			case 'j':
+				stop_ball();
+				break;
+			case 'l':
+				carry_ball();
+				break;
+			case 'k':
+				kick_ball();
+				break;
+			default:
+				break;
+		}
 	}
 
     sleep(10);
 
     return 0;
 }
-

@@ -8,6 +8,7 @@ extern int port;
 extern struct User *rteam;
 extern struct User *bteam;
 extern int repollfd, bepollfd;
+extern struct Map court;
 
 void add_event(int epollfd, int fd, int events){
     struct epoll_event ev;
@@ -91,6 +92,9 @@ int udp_accept(int epollfd, int fd, struct User *user) {
         DBG(GREEN"INFO"NONE" : "RED" %s on %s:%d login! (%s)\n"NONE, request.name, inet_ntoa(client.sin_addr), ntohs(client.sin_port), request.msg);
 
 	strcpy(user->name, request.name);
+	if (request.team == 0) user->loc.x = 2;
+	else user->loc.x = court.width - 3;
+	user->loc.y = court.height / 2;
 	user->team = request.team;
     new_fd = udp_connect(epollfd, &client);
 	user->fd = new_fd;

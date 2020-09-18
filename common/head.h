@@ -9,9 +9,14 @@
 #include <sys/ioctl.h>
 #include <fcntl.h>
 #include <sys/epoll.h>
+#include <ncurses.h>
+#include <signal.h>
+#include <locale.h>
+#include <sys/time.h>
+#include <math.h>
+#include <cjson/cJSON.h>
+
+#include "datatype.h"
 #include "global.h"
 #include "common.h"
 #include "color.h"
-#include "datatype.h"
-#include <curses.h>
-#include <signal.h>

@@ -7,6 +7,7 @@
 
 #include "head.h"
 #include "game.h"
+#include "client_re_drew.h"
 
 extern int sockfd;
 
@@ -32,6 +33,14 @@ void *client_recv(void *arg) {
 			DBG(GREEN"Server is going to stop!\n"NONE);
 			endwin();	
 			exit(0);
+		} else if (msg.type & FT_GAME) {
+			cJSON *root = cJSON_Parse(msg.msg);
+			re_drew(root);
+		} else if (msg.type & FT_SCORE) {
+			cJSON *root = cJSON_Parse(msg.msg);
+			char tmp[512] = {0};
+			sprintf(tmp, "%s get 1 score", cJSON_GetObjectItem(root, "name")->valuestring);
+			Show_Message( , NULL, tmp, 1);
 		} else {
 			DBG(GREEN"Server Msg :"NONE"Unsupport Message Type.\n");
 		}

@@ -2,6 +2,7 @@
 #include "datatype.h"
 #include "udp_epoll.h"
 #include "game.h"
+#include "show_data_stream.h"
 
 #define MAX 50
 extern struct User *rteam, *bteam;
@@ -19,6 +20,7 @@ void heart_beat_team(struct User *team) {
 			send(team[i].fd, (void *)&msg, sizeof(msg), 0);
 			team[i].flag--;
 			if (team[i].flag <= 0) {
+				show_data_stream('e');
 				char tmp[512] = {0};
 				sprintf("%s is removed from list.", team[i].name);
 				Show_Message( , NULL, tmp, 1);

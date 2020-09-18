@@ -1,8 +1,12 @@
+#include "head.h"
 #include "thread_pool.h"
 #include "udp_epoll.h"
 #include "game.h"
+#include "show_data_stream.h"
+#include "ball_status.h"
 
 extern int bepollfd, repollfd;
+extern struct BallStatus ball_status;
 
 void do_echo(struct User *user) {
 	struct FootBallMsg msg;
@@ -23,6 +27,10 @@ void do_echo(struct User *user) {
 		Show_Message( , user, msg.msg, );
 		send(user->fd, (void *)&msg, sizeof(msg), 0);
 	} else if (msg.type & FT_FIN) {
+		show_data_stream('e');
+		pthread_mutex_lock(&ball_status.mutex);
+		if (user == ball_status.user) ball_status.carry = 0;
+		pthread_mutex_unlock(&ball_status.mutex);
 		DBG(RED"%s logout.\n", user->name);
 		char tmp[512] = {0};
 		sprintf(tmp, "%s Logout!", user->name);
@@ -30,6 +38,43 @@ void do_echo(struct User *user) {
 		user->online = 0;
 		int epollfd_tmp = (user->team ? bepollfd : repollfd);
 		del_event(epollfd_tmp, user->fd);
+	} else if (msg.type & FT_CTL) {
+		show_data_stream('n');
+		if (msg.ctl.dirx || msg.ctl.diry) {
+			user->loc.x += msg.ctl.dirx;
+			user->loc.y += msg.ctl.diry;
+			if (user->loc.x <= 0) user->loc.x = 0;
+			if (user->loc.x >= court.width - 1) user->loc.x = court.width - 1;
+			if (user->loc.y <= 0) user->loc.y = 0;
+			if (user->loc.y >= court.height - 1) user->loc.y = court.height - 1;
+		}
+		pthread_mutex_lock(&ball_status.mutex);
+		if (msg.ctl.action & ACTION_KICK) {
+			show_data_stream('k');
+			if (can_kick(&user->loc, msg.ctl.strength)) {
+				ball_status.carry = 0;
+				ball_status.who = user->team;
+				strcpy(ball_status.name, user->name);
+			}
+		} else if (msg.ctl.action & ACTION_STOP) {
+			show_data_stream('s');
+			if (can_access(&user->loc)) {
+				ball_status.carry = 0;
+				strcpy(ball_status.name, user->name);
+				ball_status.v.x = ball_status.v.y = 0;
+				ball_status.a.x = ball_status.a.y = 0;
+			}
+		} else if (msg.ctl.action & ACTION_CARRY){
+			show_data_stream('c');
+			if (can_access(&user->loc)) {
+				strcpy(ball_status.name, user->name);
+				ball_status.carry = 1;
+				ball_status.user = user;
+				ball_status.v.x = ball_status.v.y = 0;
+				ball_status.a.x = ball_status.a.y = 0;
+			}
+		}
+		pthread_mutex_unlock(&ball_status.mutex);
 	}
 }
 
@@ -64,7 +109,7 @@ struct User *task_queue_pop(struct task_queue *taskQueue) {
 	DBG(L_GREEN"Thread Pool : "NONE" Task Pop %s.\n", user->name);
 	if (++taskQueue->head == taskQueue->sum) {
 		DBG(L_GREEN"Thread Pool : "NONE" Task Queue End.\n");
-		taskQueue = 0;
+		taskQueue->head = 0;
 
 	}
 	pthread_mutex_unlock(&taskQueue->mutex);

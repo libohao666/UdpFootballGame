@@ -1,11 +1,11 @@
 #define MAX 50
-
 #define DEFARG(name, default_value) ((#name[0]) ? (name + 0) : default_value)
-
 #define Show_Message(arg0, arg1, arg2, arg3) show_message(DEFARG(arg0, Message), DEFARG(arg1, NULL), arg2, DEFARG(arg3, 0))
 
+char data_stream[20];
+
 struct Map court;
-WINDOW *Football, *Message, *Help, *Score, *Write;
+WINDOW *Football, *Message, *Help, *Score, *Write, *Football_t;
 
 WINDOW *create_newwin(int width, int height, int startx, int starty);
 void destroy_win(WINDOW *win);
